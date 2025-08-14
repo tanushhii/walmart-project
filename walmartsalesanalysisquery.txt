@@ -1,0 +1,123 @@
+SELECT * FROM walmart2024.sales;
+USE walmart2024;
+
+-- 0) Quick sanity checks
+SELECT COUNT(*) AS rows_loaded FROM sales;
+SELECT MIN(invoice_date) AS first_date, MAX(invoice_date) AS last_date FROM sales;
+
+-- 1) Total revenue for 2024
+SELECT ROUND(SUM(quantity * unit_price), 2) AS total_revenue
+FROM sales;
+
+-- 2) Total orders (distinct invoices) and customers
+SELECT COUNT(DISTINCT invoice_no) AS total_orders,
+       COUNT(DISTINCT customer_id) AS total_customers
+FROM sales;
+
+-- 3) Monthly revenue trend (YYYY-MM)
+SELECT DATE_FORMAT(invoice_date, '%Y-%m') AS month,
+       ROUND(SUM(quantity * unit_price), 2) AS revenue
+FROM sales
+GROUP BY month
+ORDER BY month;
+
+-- 4) Top 10 products by revenue
+SELECT description,
+       ROUND(SUM(quantity * unit_price), 2) AS revenue
+FROM sales
+GROUP BY description
+ORDER BY revenue DESC
+LIMIT 10;
+
+-- 5) Top 10 products by quantity
+SELECT description,
+       SUM(quantity) AS total_qty
+FROM sales
+GROUP BY description
+ORDER BY total_qty DESC
+LIMIT 10;
+
+-- 6) Average order value (AOV)
+WITH order_totals AS (
+  SELECT invoice_no, SUM(quantity * unit_price) AS order_value
+  FROM sales
+  GROUP BY invoice_no
+)
+SELECT ROUND(AVG(order_value), 2) AS avg_order_value
+FROM order_totals;
+
+-- 7) Revenue by country
+SELECT country,
+       ROUND(SUM(quantity * unit_price), 2) AS revenue
+FROM sales
+GROUP BY country
+ORDER BY revenue DESC;
+
+-- 8) Best sales weekday (needs DateTime or Date)
+SELECT DAYNAME(invoice_date) AS weekday,
+       ROUND(SUM(quantity * unit_price), 2) AS revenue
+FROM sales
+GROUP BY weekday
+ORDER BY revenue DESC;
+
+-- 9) Hour-of-day revenue (only meaningful if you have times)
+SELECT HOUR(invoice_date) AS hour_of_day,
+       ROUND(SUM(quantity * unit_price), 2) AS revenue
+FROM sales
+GROUP BY hour_of_day
+ORDER BY hour_of_day;
+
+-- 10) Top 10 customers by number of orders
+SELECT customer_id, COUNT(DISTINCT invoice_no) AS num_orders
+FROM sales
+GROUP BY customer_id
+ORDER BY num_orders DESC
+LIMIT 10;
+
+-- 11) Top 10 customers by revenue
+SELECT customer_id,
+       ROUND(SUM(quantity * unit_price), 2) AS revenue
+FROM sales
+GROUP BY customer_id
+ORDER BY revenue DESC
+LIMIT 10;
+
+-- 12) High-price items (UnitPrice >= 100): qty and revenue
+SELECT description,
+       COUNT(*) AS lines,
+       SUM(quantity) AS total_qty,
+       ROUND(SUM(quantity * unit_price), 2) AS revenue
+FROM sales
+WHERE unit_price >= 100
+GROUP BY description
+ORDER BY revenue DESC
+LIMIT 10;
+
+-- 13) Daily revenue (useful for quick charting)
+SELECT DATE(invoice_date) AS sales_day,
+       ROUND(SUM(quantity * unit_price), 2) AS revenue
+FROM sales
+GROUP BY sales_day
+ORDER BY sales_day;
+
+-- 14) Order size distribution (lines per invoice)
+SELECT lines_per_order, COUNT(*) AS orders
+FROM (
+  SELECT invoice_no, COUNT(*) AS lines_per_order
+  FROM sales
+  GROUP BY invoice_no
+) t
+GROUP BY lines_per_order
+ORDER BY lines_per_order;
+
+-- 15) Basket pairs (most frequent item pairs in same invoice) - heavier query
+SELECT a.description AS item_a,
+       b.description AS item_b,
+       COUNT(*) AS together_count
+FROM sales a
+JOIN sales b
+  ON a.invoice_no = b.invoice_no
+ AND a.stock_code < b.stock_code
+GROUP BY item_a, item_b
+ORDER BY together_count DESC
+LIMIT 20;
